@@ -2,6 +2,14 @@
 # For more information see: https://docs.github.com/en/actions/use-cases-and-examples/building-and-testing/building-and-testing-java-with-maven
 name: Java CI with Maven
 
+env:
+  IMAGE_NAME: 'petclinic'
+  PROJECT_ID: 'petclinic-444616'
+  AR_REPO_LOCATION: 'europe-central2'
+  AR_URL: 'europe-central2-docker.pkg.dev/petclinic-444616/docker-image-registry'
+  SERVICE_ACCOUNT: 'github-actions-petclinic@petclinic-444616.iam.gserviceaccount.com' 
+  WORKLOAD_IDENTITY_PROVIDER: 'projects/334892833978/locations/global/workloadIdentityPools/github-actions/providers/github-provider'
+
 on:
   push:
     branches: [ main ]
@@ -33,6 +41,10 @@ jobs:
             
   
   containerize:
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    
     needs: build_and_test
     runs-on: ubuntu-latest
     strategy:
@@ -40,6 +52,22 @@ jobs:
         java: [ '17' ]
     steps:
       - uses: actions/checkout@v4
+      - name: Google Auth
+        id: auth
+        uses: 'google-github-actions/auth@v2'
+        with:
+          token_format: 'access_token'
+          project_id: ${{ env.PROJECT_ID }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+
+      - name: Docker Auth
+        id: docker-auth
+        uses: 'docker/login-action@v1'
+        with:
+          username: 'oauth2accesstoken'
+          password: '${{ steps.auth.outputs.access_token }}'
+          registry: '${{ env.AR_REPO_LOCATION }}-docker.pkg.dev'
       - uses: actions/download-artifact@v4
         with:
           name: petclinic-artifact
@@ -51,7 +79,13 @@ jobs:
           distribution: 'adopt'
           cache: maven
       - name: Build with Maven Wrapper
-        run: ./mvnw spring-boot:build-image -Dspring-boot.build-image.imageName=petclinic-ansible:latest -Dmaven.test.skip=true
+        run: './mvnw spring-boot:build-image -Dspring-boot.build-image.imageName={{ env.IMAGE_NAME }}:${{ github.sha }} -Dmaven.test.skip=true'
+        
+      - name: Build and Push Container
+        run: |-
+          docker push "${{ env.IMAGE_NAME }}:${{ github.sha }}"
+        
+
 
 
 
