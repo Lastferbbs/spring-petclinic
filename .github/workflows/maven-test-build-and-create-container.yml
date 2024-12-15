@@ -35,6 +35,9 @@ jobs:
   containerize:
     needs: build_and_test
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        java: [ '17' ]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
