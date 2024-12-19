@@ -80,8 +80,19 @@ jobs:
           cache: maven
       - name: Build with Maven Wrapper
         run: './mvnw spring-boot:build-image -Dspring-boot.build-image.imageName=${{ env.AR_URL }}/${{ env.IMAGE_NAME }}:${{ github.sha }} -Dmaven.test.skip=true'
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.29.0
+        with:
+          image-ref: "${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+        continue-on-error: true
         
-      - name: Build and Push Container
+      - name: Push Container to external repo
         run: |-
           docker push "${{ env.AR_URL }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
         
